@@ -8,6 +8,9 @@ These files can simply be added to the project to take full advantage of its fun
 ## Control nodes
 Control nodes are a special type of node that can manage multiple children.
 These types of nodes can execute a sequence of child nodes, executing them until one is successfully returned, and so on.
+All control nodes have internal state.
+This internal state is reset to the initial state after exception is thrown or execution completed.
+Therefore, it must be safe for use with predicates and handlers that may throw an exception.
 
 - **Sequence**
 
@@ -36,9 +39,7 @@ These types of nodes can execute a sequence of child nodes, executing them until
 - **If/Then/Else**
 
 An if-else statement controls conditional branching.
-This is similar to the if/then/else expressions used in programming languages but this type of node has internal state.
-This internal state is reset to the initial state after exception is thrown.
-Therefore, it must be safe for use with predicates and handlers that may throw an exception.
+This is similar to the if/then/else expressions used in programming languages.
 
 | Return  | Condition               |
 | ------- | ----------------------- |
