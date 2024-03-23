@@ -3,7 +3,7 @@
 
 using namespace cppttl;
 
-TEST_CASE("If without handlers", "[if_then_else]") {
+TEST_CASE("If without handlers", "[if/then/else]") {
   // clang-format off
   auto if_success =
         bhv::if_("if", bhv::condition("success", [] { return true; }));
@@ -18,7 +18,7 @@ TEST_CASE("If without handlers", "[if_then_else]") {
   REQUIRE(if_running() == bhv::status::running);
 }
 
-TEST_CASE("If then", "[if_then_else]") {
+TEST_CASE("If then", "[if/then/else]") {
   int n = 0;
 
   // clang-format off
@@ -38,7 +38,7 @@ TEST_CASE("If then", "[if_then_else]") {
   REQUIRE((if_running() == bhv::status::running && n == 44));
 }
 
-TEST_CASE("If else", "[if_then_else]") {
+TEST_CASE("If else", "[if/then/else]") {
   int n = 0;
 
   // clang-format off
@@ -58,7 +58,7 @@ TEST_CASE("If else", "[if_then_else]") {
   REQUIRE((if_running() == bhv::status::running && n == 44));
 }
 
-TEST_CASE("If then else", "[if_then_else]") {
+TEST_CASE("If then else", "[if/then/else]") {
   int n = 0;
 
   // clang-format off
@@ -86,7 +86,7 @@ TEST_CASE("If then else", "[if_then_else]") {
   REQUIRE((if_running_else() == bhv::status::running && n == 50));
 }
 
-TEST_CASE("If then else recovery after the exception", "[if_then_else]") {
+TEST_CASE("If then else recovery after the exception", "[if/then/else]") {
   int n = 0;
   bool condition_executed = false;
 

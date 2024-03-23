@@ -37,48 +37,92 @@ std::string_view node::name() const { return _name; }
 
 // sequence
 status sequence::tick() {
-  for (auto &&child : _childs) {
-    auto st = (*child)();
-    if (st == status::running)
-      return status::running;
-    else if (st == status::failure)
-      return status::failure;
+  status st = status::success;
+
+  try {
+    for (; _running < _childs.size(); ++_running) {
+      auto &child = _childs[_running];
+      st = (*child)();
+      if (st != status::success)
+        break;
+    }
+
+    if (st != status::running)
+      reset();
+  } catch (...) {
+    reset();
+    throw;
   }
-  return status::success;
+
+  return st;
 }
+
+void sequence::reset() { _running = 0; }
 
 // fallback
 status fallback::tick() {
-  for (auto &&child : _childs) {
-    auto st = (*child)();
-    if (st == status::running)
-      return status::running;
-    else if (st == status::success)
-      return status::success;
+  status st = status::failure;
+
+  try {
+    for (; _running < _childs.size(); ++_running) {
+      auto &child = _childs[_running];
+      st = (*child)();
+      if (st != status::failure)
+        break;
+    }
+
+    if (st != status::running)
+      reset();
+  } catch (...) {
+    reset();
+    throw;
   }
-  return status::failure;
+
+  return st;
 }
+
+void fallback::reset() { _running = 0; }
 
 // parallel
 parallel::parallel(std::string_view name, size_t threshold)
     : base(name), _threshold(threshold) {}
 
 status parallel::tick() {
-  size_t success = {};
-  size_t failed = {};
+  status st = status::success;
 
-  for (auto &&child : _childs) {
-    auto st = (*child)();
-    if (st == status::success)
-      ++success;
-    else if (st == status::failure)
-      ++failed;
-  }
+  try {
+    _statuses.resize(_childs.size(), status::running);
 
-  return success >= _threshold                  ? status::success
+    size_t success = {};
+    size_t failed = {};
+
+    for (size_t i = 0; i < _childs.size(); ++i) {
+      auto &child = _childs[i];
+      auto &st = _statuses[i];
+
+      if (st == status::running)
+        st = (*child)();
+      if (st == status::success)
+        ++success;
+      else if (st == status::failure)
+        ++failed;
+    }
+
+    st = success >= _threshold                  ? status::success
          : failed > _childs.size() - _threshold ? status::failure
                                                 : status::running;
+
+    if (st != status::running)
+      reset();
+  } catch (...) {
+    reset();
+    throw;
+  }
+
+  return st;
 }
+
+void parallel::reset() { _statuses.clear(); }
 
 // invert
 status invert::tick() {
@@ -147,6 +191,76 @@ status if_::tick() {
     _state = state::condition_state;
     throw;
   }
+  return st;
+}
+
+// switch_
+case_proxy::case_proxy(switch_ &stmt) : _switch(stmt) {}
+
+status switch_::tick() {
+  if (_childs.size() != _map.size())
+    throw std::runtime_error("The switch expression is in an invalid state. "
+                             "Some cases are incorrectly mapped to handlers.");
+
+  status st = status::failure;
+
+  // try {
+  //   do {
+  //     if (!_childs[static_cast<size_t>(_state)]) {
+  //       _state = state::condition_state;
+  //       return status::failure;
+  //     }
+
+  //     st = (*_childs[static_cast<size_t>(_state)])();
+
+  //     switch (st) {
+  //     case status::running:
+  //       return st;
+  //     case status::success: {
+  //       _state = _state == state::condition_state ? state::then_state
+  //                                                 : state::break_state;
+  //       break;
+  //     }
+  //     case status::failure: {
+  //       _state = _state == state::condition_state ? state::else_state
+  //                                                 : state::break_state;
+  //       break;
+  //     }
+  //     }
+  //   } while (_state != state::break_state);
+
+  //   _state = state::condition_state;
+  // } catch (...) {
+  //   _state = state::condition_state;
+  //   throw;
+  // }
+
+  do {
+    switch (_state) {
+    case state::collect_state: {
+      _state = state::default_state;
+      break;
+    }
+
+    case state::default_state: {
+      if (_default_handler) {
+        st = (*_default_handler)();
+        if (st == status::running)
+          return st;
+      } else {
+        st = status::failure;
+      }
+      _state = state::break_state;
+      break;
+    }
+
+    default:
+      throw std::runtime_error("Unknown state of swith/case handler");
+    }
+  } while (_state != state::break_state);
+
+  _state = state::collect_state;
+
   return st;
 }
 

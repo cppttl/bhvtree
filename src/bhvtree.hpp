@@ -98,6 +98,10 @@ public:
 
 private:
   status tick() final;
+  void reset();
+
+private:
+  size_t _running{};
 };
 
 // ?
@@ -109,6 +113,10 @@ public:
 
 private:
   status tick() final;
+  void reset();
+
+private:
+  size_t _running{};
 };
 
 // =>
@@ -120,12 +128,16 @@ public:
 
 private:
   status tick() final;
+  void reset();
 
 private:
+  using statuses = std::vector<status>;
+
   size_t _threshold;
+  statuses _statuses;
 };
 
-// if then else
+// if/then/else
 class if_ : public basic_control {
 public:
   using base = basic_control;
@@ -150,7 +162,7 @@ private:
     break_state
   };
 
-  state _state{};
+  state _state = state::condition_state;
 };
 
 template <typename T, typename Node>
@@ -177,6 +189,126 @@ template <typename T, typename Node> if_ &if_::else_(T &&node) {
 template <typename Node, typename... Args> if_ &if_::else_(Args &&...args) {
   _childs[2] = std::make_shared<Node>(std::forward<Args>(args)...);
   return *this;
+}
+
+// switch/case
+class switch_;
+
+class case_proxy {
+private:
+  case_proxy(switch_ &stmt);
+
+public:
+  case_proxy(case_proxy const &) = default;
+  case_proxy(case_proxy &&) = default;
+
+  template <typename Cond, typename Condition = std::decay_t<Cond>>
+  case_proxy case_(Cond &&condition) &&;
+  template <typename Cond, typename... Args>
+  case_proxy case_(Args &&...args) &&;
+
+  template <typename T, typename Node = std::decay_t<T>>
+  switch_ &handler(T &&node) &&;
+  template <typename Node, typename... Args>
+  switch_ &handler(Args &&...args) &&;
+
+private:
+  switch_ &_switch;
+
+  friend class switch_;
+};
+
+class switch_ : public basic_control {
+public:
+  using base = basic_control;
+
+  using base::base;
+
+  template <typename C> case_proxy case_(C &&condition);
+  template <typename C, typename... Args> case_proxy case_(Args &&...args);
+
+  template <typename T, typename Node = std::decay_t<T>>
+  switch_ &default_(T &&node);
+  template <typename Node, typename... Args> switch_ &default_(Args &&...args);
+
+private:
+  status tick() final;
+
+private:
+  enum class state : size_t {
+    collect_state,
+    switch_state,
+    default_state,
+    break_state
+  };
+
+  using handlers_map = std::vector<std::pair<size_t, size_t>>;
+
+  state _state = state::collect_state;
+
+  childs_list _handlers;
+  node::ptr _default_handler;
+  handlers_map _map;
+
+  friend class case_proxy;
+};
+
+template <typename C> case_proxy switch_::case_(C &&condition) {
+  return case_proxy(*this).case_<C>(std::forward<C>(condition));
+}
+
+template <typename C, typename... Args>
+case_proxy switch_::case_(Args &&...args) {
+  return case_proxy(*this).case_<C, Args...>(std::forward<Args>(args)...);
+}
+
+template <typename T, typename Node> switch_ &switch_::default_(T &&node) {
+  _default_handler = std::make_shared<Node>(std::forward<T>(node));
+  return *this;
+}
+
+template <typename Node, typename... Args>
+switch_ &switch_::default_(Args &&...args) {
+  _default_handler = std::make_shared<Node>(std::forward<Args>(args)...);
+  return *this;
+}
+
+template <typename Cond, typename Condition>
+case_proxy case_proxy::case_(Cond &&condition) && {
+  _switch._map.emplace_back(_switch._childs.size(), _switch._handlers.size());
+  try {
+    _switch._childs.emplace_back(
+        std::make_shared<Condition>(std::forward<Cond>(condition)));
+  } catch (...) {
+    _switch._map.pop_back();
+    throw;
+  }
+  return *this;
+}
+
+template <typename C, typename... Args>
+case_proxy case_proxy::case_(Args &&...args) && {
+  _switch._map.emplace_back(_switch._childs.size(), _switch._handlers.size());
+  try {
+    _switch._childs.emplace_back(
+        std::make_shared<C>(std::forward<Args>(args)...));
+  } catch (...) {
+    _switch._map.pop_back();
+    throw;
+  }
+  return *this;
+}
+
+template <typename T, typename Node> switch_ &case_proxy::handler(T &&node) && {
+  _switch._handlers.emplace_back(std::make_shared<Node>(std::forward<T>(node)));
+  return _switch;
+}
+
+template <typename Node, typename... Args>
+switch_ &case_proxy::handler(Args &&...args) && {
+  _switch._handlers.emplace_back(
+      std::make_shared<Node>(std::forward<Args>(args)...));
+  return _switch;
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
