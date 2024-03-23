@@ -44,7 +44,7 @@ TEST_CASE("Repeat 3 times with running node", "[repeat]") {
   }
 }
 
-TEST_CASE("Recover after the exception", "[repeat]") {
+TEST_CASE("Repeat after the exception", "[repeat]") {
   int n = 0;
   bool exception = true;
 

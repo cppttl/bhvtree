@@ -408,6 +408,26 @@ private:
   size_t _i = {};
 };
 
+/**
+ * @brief Retry the child node N times until it returns a successful state.
+ */
+class retry : public decorator<retry> {
+public:
+  using base = decorator<retry>;
+
+  static constexpr auto infinitely = std::numeric_limits<size_t>::max();
+
+  retry(std::string_view name, size_t repeat_n = infinitely);
+
+private:
+  status tick() final;
+  void reset();
+
+private:
+  size_t const _n;
+  size_t _i = {};
+};
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // execution nodes
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

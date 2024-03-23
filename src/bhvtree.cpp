@@ -183,6 +183,43 @@ status repeat::tick() {
 
 void repeat::reset() { _i = 0; }
 
+// retry
+retry::retry(std::string_view name, size_t repeat_n)
+    : base(name), _n(repeat_n) {}
+
+status retry::tick() {
+  if (_childs.empty() || !_childs.front())
+    throw std::runtime_error(
+        "There is no controllable node under the 'retry' node");
+
+  const auto step = _n == infinitely ? 0ull : 1ull;
+
+  try {
+    for (; _i < _n; _i += step) {
+      auto status = (*_childs.front())();
+
+      switch (status) {
+      case status::success:
+        reset();
+        return status::success;
+      case status::failure:
+        break;
+      case status::running:
+        return status::running;
+      }
+    }
+
+    reset();
+  } catch (...) {
+    reset();
+    throw;
+  }
+
+  return status::failure;
+}
+
+void retry::reset() { _i = 0; }
+
 // action
 status action::tick() { return _fn(); }
 
