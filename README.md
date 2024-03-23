@@ -32,9 +32,9 @@ Therefore, it must be safe for use with predicates and handlers that may throw a
 
 | Return  | Condition               |
 | ------- | ----------------------- |
-| success | If at least M childs succeed  |
-| failure | If at least N - M childs fail |
-| running | In other cases                |
+| success | If at least M child succeed  |
+| failure | If at least N - M child fail |
+| running | In other cases               |
 
 - **If/Then/Else**
 
@@ -46,6 +46,19 @@ This is similar to the if/then/else expressions used in programming languages.
 | success | If the branch handler succeed             |
 | failure | If the branch handler fails or is missing |
 | running | In other cases                            |
+
+- **Switch/Case/Default**
+
+An switch-case statement is another way to control the conditional branching.
+It is similar to the parallel control node with a slight difference.
+Instead of executing all nodes, nodes are selected by predicate.
+All handlers with successfully completed predicates will be executed.
+
+| Return  | Condition               |
+| ------- | ----------------------- |
+| success | If all case handlers are succeed                              |
+| failure | If least one case handler is failed                           |
+| running | In other cases, i.e least one predicate or handler is running |
 
 ## Decorators
 Decorators are control nodes with single child. These node types modify the behavior of the controlled child node.

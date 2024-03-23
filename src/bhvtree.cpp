@@ -164,7 +164,7 @@ status if_::tick() {
   try {
     do {
       if (!_childs[static_cast<size_t>(_state)]) {
-        _state = state::condition_state;
+        reset();
         return status::failure;
       }
 
@@ -186,13 +186,15 @@ status if_::tick() {
       }
     } while (_state != state::break_state);
 
-    _state = state::condition_state;
+    reset();
   } catch (...) {
-    _state = state::condition_state;
+    reset();
     throw;
   }
   return st;
 }
+
+void if_::reset() { _state = state::condition_state; }
 
 // switch_
 case_proxy::case_proxy(switch_ &stmt) : _switch(stmt) {}
@@ -204,62 +206,103 @@ status switch_::tick() {
 
   status st = status::failure;
 
-  // try {
-  //   do {
-  //     if (!_childs[static_cast<size_t>(_state)]) {
-  //       _state = state::condition_state;
-  //       return status::failure;
-  //     }
-
-  //     st = (*_childs[static_cast<size_t>(_state)])();
-
-  //     switch (st) {
-  //     case status::running:
-  //       return st;
-  //     case status::success: {
-  //       _state = _state == state::condition_state ? state::then_state
-  //                                                 : state::break_state;
-  //       break;
-  //     }
-  //     case status::failure: {
-  //       _state = _state == state::condition_state ? state::else_state
-  //                                                 : state::break_state;
-  //       break;
-  //     }
-  //     }
-  //   } while (_state != state::break_state);
-
-  //   _state = state::condition_state;
-  // } catch (...) {
-  //   _state = state::condition_state;
-  //   throw;
-  // }
-
-  do {
-    switch (_state) {
-    case state::collect_state: {
-      _state = state::default_state;
-      break;
+  try {
+    if (_state == state::match) {
+      st = match();
     }
 
-    case state::default_state: {
-      if (_default_handler) {
-        st = (*_default_handler)();
-        if (st == status::running)
-          return st;
-      } else {
-        st = status::failure;
+    if (_state == state::exec) {
+      st = exec();
+    }
+
+    if (st != status::running)
+      reset();
+  } catch (...) {
+    reset();
+    throw;
+  }
+
+  return st;
+}
+
+void switch_::reset() {
+  _state = state::match;
+  _match_statuses.clear();
+  _handler_statuses.clear();
+}
+
+status switch_::match() {
+  _match_statuses.resize(_childs.size(), status::running);
+
+  // Collect matched cases
+  std::vector<size_t> matched;
+  matched.reserve(_childs.size());
+
+  size_t running = {};
+
+  for (size_t i = 0; i < _childs.size(); ++i) {
+    auto &child = _childs[i];
+    auto &st = _match_statuses[i];
+
+    if (st == status::running)
+      st = (*child)();
+    if (st == status::running)
+      ++running;
+    else if (st == status::success)
+      matched.emplace_back(i);
+  }
+
+  if (running)
+    return status::running;
+
+  if (!matched.empty()) {
+    _handler_statuses.reserve(_handlers.size());
+
+    size_t mapped_handler = _map.at(matched.front());
+    _handler_statuses.emplace_back(mapped_handler, status::running);
+
+    for (size_t i = 1; i < matched.size(); ++i) {
+      size_t handler = _map.at(matched[i]);
+      if (mapped_handler != handler) {
+        mapped_handler = handler;
+        _handler_statuses.emplace_back(mapped_handler, status::running);
       }
-      _state = state::break_state;
-      break;
     }
 
-    default:
-      throw std::runtime_error("Unknown state of swith/case handler");
-    }
-  } while (_state != state::break_state);
+    _match_statuses.clear();
+  }
 
-  _state = state::collect_state;
+  _state = state::exec;
+
+  return status::success;
+}
+
+status switch_::exec() {
+  status st = status::failure;
+
+  if (!_handler_statuses.empty()) { // execute matched handlers
+    size_t running = {};
+    size_t failed = {};
+
+    for (auto &&[handler_idx, handler_status] : _handler_statuses) {
+      if (handler_status == status::running)
+        handler_status = (*_handlers.at(handler_idx))();
+      if (handler_status == status::running)
+        ++running;
+      if (handler_status == status::failure)
+        ++failed;
+    }
+
+    st = running != 0  ? status::running
+         : failed != 0 ? status::failure
+                       : status::success;
+  } else { // execute default handler
+    if (_default_handler) {
+      st = (*_default_handler)();
+    } else {
+      st = status::failure;
+    }
+  }
 
   return st;
 }

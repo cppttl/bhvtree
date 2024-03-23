@@ -153,6 +153,7 @@ public:
 
 private:
   status tick() final;
+  void reset();
 
 private:
   enum class state : size_t {
@@ -233,18 +234,20 @@ public:
 
 private:
   status tick() final;
+  void reset();
+  status match();
+  status exec();
 
 private:
-  enum class state : size_t {
-    collect_state,
-    switch_state,
-    default_state,
-    break_state
-  };
+  enum class state : size_t { match, exec };
 
-  using handlers_map = std::vector<std::pair<size_t, size_t>>;
+  using handlers_map = std::vector<size_t>;
+  using statuses = std::vector<status>;
+  using handler_statuses = std::vector<std::pair<size_t, status>>;
 
-  state _state = state::collect_state;
+  state _state = state::match;
+  statuses _match_statuses;
+  handler_statuses _handler_statuses;
 
   childs_list _handlers;
   node::ptr _default_handler;
@@ -275,7 +278,7 @@ switch_ &switch_::default_(Args &&...args) {
 
 template <typename Cond, typename Condition>
 case_proxy case_proxy::case_(Cond &&condition) && {
-  _switch._map.emplace_back(_switch._childs.size(), _switch._handlers.size());
+  _switch._map.emplace_back(_switch._handlers.size());
   try {
     _switch._childs.emplace_back(
         std::make_shared<Condition>(std::forward<Cond>(condition)));
@@ -288,7 +291,7 @@ case_proxy case_proxy::case_(Cond &&condition) && {
 
 template <typename C, typename... Args>
 case_proxy case_proxy::case_(Args &&...args) && {
-  _switch._map.emplace_back(_switch._childs.size(), _switch._handlers.size());
+  _switch._map.emplace_back(_switch._handlers.size());
   try {
     _switch._childs.emplace_back(
         std::make_shared<C>(std::forward<Args>(args)...));
