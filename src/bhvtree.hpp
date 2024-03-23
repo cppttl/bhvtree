@@ -56,6 +56,9 @@ enum class node_type {
   custom
 };
 
+char const *to_string(status);
+char const *to_string(node_type);
+
 /**
  * @brief The base class of all nodes.
  */
@@ -500,6 +503,8 @@ public:
 
   repeat(std::string_view name, size_t repeat_n = infinitely);
 
+  size_t count() const;
+
 private:
   status tick() final;
   void reset();
@@ -520,6 +525,8 @@ public:
 
   retry(std::string_view name, size_t repeat_n = infinitely);
 
+  size_t count() const;
+
 private:
   status tick() final;
   void reset();
@@ -537,6 +544,8 @@ public:
   using base = decorator<force>;
 
   force(std::string_view name, status st);
+
+  status result() const;
 
 private:
   status tick() final;

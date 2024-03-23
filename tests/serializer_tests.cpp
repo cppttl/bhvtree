@@ -1,7 +1,6 @@
 #include "bhvtree.hpp"
 #include "catch.hpp"
 #include <bhvserializer.hpp>
-#include <iostream>
 #include <sstream>
 
 using namespace cppttl;
@@ -142,4 +141,74 @@ TEST_CASE("Switch/Case node serialization", "[serializer]") {
   ss << switch_0;
   ss << switch_1;
   ss << switch_2;
+}
+
+TEST_CASE("Invert node serialization", "[serializer]") {
+  int n = 0;
+
+  // clang-format off
+  auto inv0 =
+      bhv::invert("inv0")
+        .child<bhv::action>("1", [&n] { ++n; return bhv::status::success; });
+
+  auto inv1 =
+      bhv::invert("inv1");
+  // clang-format on
+
+  std::stringstream ss;
+  ss << inv0;
+  ss << inv1;
+}
+
+TEST_CASE("Repeat node serialization", "[serializer]") {
+  int n = 0;
+
+  // clang-format off
+  auto repeat0 =
+      bhv::repeat("repeat5", 5)
+        .child<bhv::action>("1", [&n] { ++n; return bhv::status::success; });
+
+  auto repeat1 =
+      bhv::repeat("repeat42", 42);
+  // clang-format on
+
+  std::stringstream ss;
+  ss << repeat0;
+  ss << repeat1;
+}
+
+TEST_CASE("Retry node serialization", "[serializer]") {
+  int n = 0;
+
+  // clang-format off
+  auto retry0 =
+      bhv::retry("retry5", 5)
+        .child<bhv::action>("1", [&n] { ++n; return bhv::status::success; });
+
+  auto retry1 =
+      bhv::retry("repeat42", 42);
+  // clang-format on
+
+  std::stringstream ss;
+  ss << retry0;
+  ss << retry1;
+}
+
+TEST_CASE("Force node serialization", "[serializer]") {
+  int n = 0;
+
+  // clang-format off
+  auto force_success =
+      bhv::force("force \"success\" 1", bhv::status::success)
+        .child<bhv::action>("1", [&n] { ++n; return bhv::status::success; });
+
+  auto force_failure =
+      bhv::force("force \"failure\" 2", bhv::status::failure)
+        .child<bhv::action>("1", [&n] { ++n; return bhv::status::success; });
+
+  // clang-format on
+
+  std::stringstream ss;
+  ss << force_success;
+  ss << force_failure;
 }

@@ -23,18 +23,40 @@
 #include "bhvserializer.hpp"
 #include "bhvtree.hpp"
 #include <stdexcept>
+#include <string>
 
 namespace cppttl {
 namespace bhv {
 namespace {
 
-const char *node_names[static_cast<size_t>(node_type::custom) + 1] = {
-    "action", "condition", "sequence", "fallback", "parallel", "if",
-    "switch", "invert",    "repeat",   "retry",    "force",    "custom",
-};
+using namespace std::string_literals;
 
-const char *type_name(node const &n) {
-  return node_names[static_cast<size_t>(n.type())];
+const char *type_name(node const &n) { return to_string(n.type()); }
+
+std::string mask(std::string const &str) {
+  auto it = str.find('"');
+  if (it == std::string::npos)
+    return str;
+
+  std::string res;
+  res.reserve(str.size() + 8);
+
+  std::string::size_type p = 0;
+
+  for (; it != std::string::npos; it = str.find('"', it)) {
+    res += str.substr(p, it - p);
+    res += '\\';
+    p = it;
+    it += 1;
+  }
+
+  res += str.substr(p);
+
+  return res;
+}
+
+std::string node_name(node const &n) {
+  return "\""s + mask(std::string(n.name())) + "\""s;
 }
 
 class serializer final {
@@ -53,6 +75,10 @@ private:
   void save(parallel const &ref, size_t layer) const;
   void save(if_ const &ref, size_t layer) const;
   void save(switch_ const &ref, size_t layer) const;
+  void save(invert const &ref, size_t layer) const;
+  void save(repeat const &ref, size_t layer) const;
+  void save(retry const &ref, size_t layer) const;
+  void save(force const &ref, size_t layer) const;
 
 private:
   std::ostream &_stream;
@@ -97,9 +123,17 @@ void serializer::save(node const &ref, size_t layer) const {
     save(static_cast<switch_ const &>(ref), layer);
     break;
   case node_type::invert:
+    save(static_cast<invert const &>(ref), layer);
+    break;
   case node_type::repeat:
+    save(static_cast<repeat const &>(ref), layer);
+    break;
   case node_type::retry:
+    save(static_cast<retry const &>(ref), layer);
+    break;
   case node_type::force:
+    save(static_cast<force const &>(ref), layer);
+    break;
   case node_type::custom:
     throw std::runtime_error("Unsupported node type");
     break;
@@ -107,15 +141,15 @@ void serializer::save(node const &ref, size_t layer) const {
 }
 
 void serializer::save(action const &ref, size_t layer) const {
-  indent(layer) << type_name(ref) << " " << ref.name() << std::endl;
+  indent(layer) << type_name(ref) << " " << node_name(ref) << std::endl;
 }
 
 void serializer::save(condition const &ref, size_t layer) const {
-  indent(layer) << type_name(ref) << " " << ref.name() << std::endl;
+  indent(layer) << type_name(ref) << " " << node_name(ref) << std::endl;
 }
 
 void serializer::save(sequence const &ref, size_t layer) const {
-  indent(layer) << type_name(ref) << " " << ref.name();
+  indent(layer) << type_name(ref) << " " << node_name(ref);
 
   if (!ref.childs().empty()) {
     _stream << " {" << std::endl;
@@ -128,7 +162,7 @@ void serializer::save(sequence const &ref, size_t layer) const {
 }
 
 void serializer::save(fallback const &ref, size_t layer) const {
-  indent(layer) << type_name(ref) << " " << ref.name();
+  indent(layer) << type_name(ref) << " " << node_name(ref);
 
   if (!ref.childs().empty()) {
     _stream << " {" << std::endl;
@@ -142,7 +176,7 @@ void serializer::save(fallback const &ref, size_t layer) const {
 
 void serializer::save(parallel const &ref, size_t layer) const {
   indent(layer) << type_name(ref) << " threshold=" << ref.threshold() << " "
-                << ref.name();
+                << node_name(ref);
 
   if (!ref.childs().empty()) {
     _stream << " {" << std::endl;
@@ -155,7 +189,7 @@ void serializer::save(parallel const &ref, size_t layer) const {
 }
 
 void serializer::save(if_ const &ref, size_t layer) const {
-  indent(layer) << type_name(ref) << " " << ref.name();
+  indent(layer) << type_name(ref) << " " << node_name(ref);
 
   if (!ref.childs().empty()) {
     _stream << " {" << std::endl;
@@ -180,7 +214,7 @@ void serializer::save(if_ const &ref, size_t layer) const {
 }
 
 void serializer::save(switch_ const &ref, size_t layer) const {
-  indent(layer) << type_name(ref) << " " << ref.name();
+  indent(layer) << type_name(ref) << " " << node_name(ref);
 
   if (!ref.childs().empty() || ref.default_handler()) {
     _stream << " {" << std::endl;
@@ -206,6 +240,45 @@ void serializer::save(switch_ const &ref, size_t layer) const {
   }
 
   _stream << std::endl;
+}
+
+void serializer::save(invert const &ref, size_t layer) const {
+  indent(layer) << type_name(ref) << " " << node_name(ref) << std::endl;
+
+  if (!ref.childs().empty()) {
+    for (auto &child : ref.childs())
+      save(*child, layer + 1);
+  }
+}
+
+void serializer::save(repeat const &ref, size_t layer) const {
+  indent(layer) << type_name(ref) << " n=" << ref.count() << " "
+                << node_name(ref) << std::endl;
+
+  if (!ref.childs().empty()) {
+    for (auto &child : ref.childs())
+      save(*child, layer + 1);
+  }
+}
+
+void serializer::save(retry const &ref, size_t layer) const {
+  indent(layer) << type_name(ref) << " n=" << ref.count() << " "
+                << node_name(ref) << std::endl;
+
+  if (!ref.childs().empty()) {
+    for (auto &child : ref.childs())
+      save(*child, layer + 1);
+  }
+}
+
+void serializer::save(force const &ref, size_t layer) const {
+  indent(layer) << type_name(ref) << " status=" << to_string(ref.result())
+                << " " << node_name(ref) << std::endl;
+
+  if (!ref.childs().empty()) {
+    for (auto &child : ref.childs())
+      save(*child, layer + 1);
+  }
 }
 
 } // namespace

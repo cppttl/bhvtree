@@ -26,6 +26,28 @@
 namespace cppttl {
 namespace bhv {
 
+char const *to_string(status st) {
+  switch (st) {
+  case status::success:
+    return "success";
+  case status::failure:
+    return "failure";
+  case status::running:
+    return "running";
+  }
+  return "unknown";
+}
+
+char const *to_string(node_type type) {
+  static const char *names[] = {
+      "action", "condition", "sequence", "fallback", "parallel", "if",
+      "switch", "invert",    "repeat",   "retry",    "force",    "custom",
+  };
+  static_assert(static_cast<size_t>(node_type::custom) + 1 ==
+                sizeof(names) / sizeof *names);
+  return names[static_cast<size_t>(type)];
+}
+
 // node
 node::node(node_type type, std::string_view name) : _type(type), _name(name) {}
 
@@ -165,6 +187,8 @@ status invert::tick() {
 repeat::repeat(std::string_view name, size_t repeat_n)
     : base(node_type::repeat, name), _n(repeat_n) {}
 
+size_t repeat::count() const { return _n; }
+
 status repeat::tick() {
   if (_childs.empty() || !_childs.front())
     throw std::runtime_error(
@@ -202,6 +226,8 @@ void repeat::reset() { _i = 0; }
 retry::retry(std::string_view name, size_t repeat_n)
     : base(node_type::retry, name), _n(repeat_n) {}
 
+size_t retry::count() const { return _n; }
+
 status retry::tick() {
   if (_childs.empty() || !_childs.front())
     throw std::runtime_error(
@@ -238,6 +264,8 @@ void retry::reset() { _i = 0; }
 // force
 force::force(std::string_view name, status st)
     : base(node_type::force, name), _status(st) {}
+
+status force::result() const { return _status; }
 
 status force::tick() {
   if (_childs.empty() || !_childs.front())
