@@ -143,7 +143,7 @@ private:
   handler _fn;
 };
 
-template <typename Fn, typename R = return_t<Fn, status>>
+template <typename Fn, typename R>
 action::action(std::string_view name, Fn &&fn) : execution(name), _fn(fn) {}
 
 class condition : public execution {
@@ -159,7 +159,7 @@ private:
   predicate _predicate;
 };
 
-template <typename Fn, typename R = return_t<Fn, bool>>
+template <typename Fn, typename R>
 condition::condition(std::string_view name, Fn &&fn)
     : execution(name), _predicate(fn) {}
 
