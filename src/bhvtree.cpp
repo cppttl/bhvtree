@@ -220,6 +220,22 @@ status retry::tick() {
 
 void retry::reset() { _i = 0; }
 
+// force
+force::force(std::string_view name, status st) : base(name), _status(st) {}
+
+status force::tick() {
+  if (_childs.empty() || !_childs.front())
+    throw std::runtime_error(
+        "There is no controllable node under the 'force' node");
+
+  auto status = (*_childs.front())();
+
+  if (status == status::running)
+    return status::running;
+
+  return _status;
+}
+
 // action
 status action::tick() { return _fn(); }
 

@@ -428,6 +428,22 @@ private:
   size_t _i = {};
 };
 
+/**
+ * @brief Force change the child status
+ */
+class force : public decorator<force> {
+public:
+  using base = decorator<force>;
+
+  force(std::string_view name, status st);
+
+private:
+  status tick() final;
+
+private:
+  status const _status;
+};
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // execution nodes
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

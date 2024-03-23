@@ -95,6 +95,16 @@ The number of attempts can be limited or unlimited and is configurable via the n
 | failure | If child failed N times            |
 | running | If child running                   |
 
+- **Force success/failure**
+
+This node type ignores the success/failure of the child node and always returns the specified state or execution state.
+
+| Return  | Condition                |
+| ------- | ------------------------ |
+| success | If the child succeed or failed and the node is configured to return success state |
+| failure | If the child succeed or failed and the node is configured to return failed state  |
+| running | If child running                   |
+
 ## Execution nodes
 Execution nodes are leaf nodes with a specific logic or function. These leaf nodes are usually declared as user-defined lambda functions.
 
