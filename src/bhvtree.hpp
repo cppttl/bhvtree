@@ -26,6 +26,7 @@
 #include <memory>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace cppttl {
@@ -66,7 +67,7 @@ protected:
   childs_list _childs;
 };
 
-template <typename Impl> class multi_control : public basic_control {
+template <typename Impl> class control : public basic_control {
 public:
   using basic_control::basic_control;
 
@@ -76,17 +77,111 @@ public:
 
 template <typename Impl>
 template <typename Node, typename... Args>
-Impl &multi_control<Impl>::add(Args &&...args) {
+Impl &control<Impl>::add(Args &&...args) {
   _childs.emplace_back(std::make_shared<Node>(std::forward<Args>(args)...));
   return static_cast<Impl &>(*this);
 }
 
 template <typename Impl>
 template <typename T, typename Node>
-Impl &multi_control<Impl>::add(T &&node) {
+Impl &control<Impl>::add(T &&node) {
   _childs.emplace_back(std::make_shared<Node>(std::forward<T>(node)));
   return static_cast<Impl &>(*this);
 }
+
+// ->
+class sequence : public control<sequence> {
+public:
+  using base = control<sequence>;
+
+  using base::control;
+
+private:
+  status tick() final;
+};
+
+// ?
+class fallback : public control<fallback> {
+public:
+  using base = control<fallback>;
+
+  using base::control;
+
+private:
+  status tick() final;
+};
+
+// =>
+class parallel : public control<parallel> {
+public:
+  using base = control<parallel>;
+
+  parallel(std::string_view name, size_t threshold);
+
+private:
+  status tick() final;
+
+private:
+  size_t _threshold;
+};
+
+// if then else
+class if_ : public basic_control {
+public:
+  using base = basic_control;
+
+  template <typename T, typename Node = std::decay_t<T>>
+  if_(std::string_view name, T &&node);
+
+  template <typename T, typename Node = std::decay_t<T>> if_ &then_(T &&node);
+  template <typename Node, typename... Args> if_ &then_(Args &&...args);
+
+  template <typename T, typename Node = std::decay_t<T>> if_ &else_(T &&node);
+  template <typename Node, typename... Args> if_ &else_(Args &&...args);
+
+private:
+  status tick() final;
+
+private:
+  enum class state : size_t {
+    condition_state,
+    then_state,
+    else_state,
+    break_state
+  };
+
+  state _state{};
+};
+
+template <typename T, typename Node>
+if_::if_(std::string_view name, T &&node) : base(name) {
+  _childs.resize(3);
+  _childs[0] = std::make_shared<Node>(std::forward<T>(node));
+}
+
+template <typename T, typename Node> if_ &if_::then_(T &&node) {
+  _childs[1] = std::make_shared<Node>(std::forward<T>(node));
+  return *this;
+}
+
+template <typename Node, typename... Args> if_ &if_::then_(Args &&...args) {
+  _childs[1] = std::make_shared<Node>(std::forward<Args>(args)...);
+  return *this;
+}
+
+template <typename T, typename Node> if_ &if_::else_(T &&node) {
+  _childs[2] = std::make_shared<Node>(std::forward<T>(node));
+  return *this;
+}
+
+template <typename Node, typename... Args> if_ &if_::else_(Args &&...args) {
+  _childs[2] = std::make_shared<Node>(std::forward<Args>(args)...);
+  return *this;
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// decorators
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 template <typename Impl> class decorator : public basic_control {
 public:
@@ -113,46 +208,6 @@ Impl &decorator<Impl>::child(T &&node) {
   std::swap(_childs.front(), child);
   return static_cast<Impl &>(*this);
 }
-
-// ->
-class sequence : public multi_control<sequence> {
-public:
-  using base = multi_control<sequence>;
-
-  using base::multi_control;
-
-private:
-  status tick() final;
-};
-
-// ?
-class fallback : public multi_control<fallback> {
-public:
-  using base = multi_control<fallback>;
-
-  using base::multi_control;
-
-private:
-  status tick() final;
-};
-
-// =>
-class parallel : public multi_control<parallel> {
-public:
-  using base = multi_control<parallel>;
-
-  parallel(std::string_view name, size_t threshold);
-
-private:
-  status tick() final;
-
-private:
-  size_t _threshold;
-};
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// decorators
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // !
 class invert : public decorator<invert> {

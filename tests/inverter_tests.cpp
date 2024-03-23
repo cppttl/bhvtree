@@ -50,7 +50,7 @@ TEST_CASE("Invert no child", "[inverter]") {
   REQUIRE_THROWS(inv());
 }
 
-TEST_CASE("Invert invlaid status", "[inverter]") {
+TEST_CASE("Invert invalid status", "[inverter]") {
   int n = 0;
 
   static size_t const invalid_status = 42;

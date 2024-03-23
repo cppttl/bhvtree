@@ -21,17 +21,30 @@ These types of nodes can execute a sequence of child nodes, executing them until
 
 | Return  | Condition               |
 | ------- | ----------------------- |
-| success | If one child succeeds |
-| failure | If all children fail |
+| success | If one child succeeds   |
+| failure | If all children fail    |
 | running | If one child returns Running |
 
 - **Parallel**
 
 | Return  | Condition               |
 | ------- | ----------------------- |
-| success | If at least M childs succeed |
+| success | If at least M childs succeed  |
 | failure | If at least N - M childs fail |
-| running | In other cases |
+| running | In other cases                |
+
+- **If/Then/Else**
+
+An if-else statement controls conditional branching.
+This is similar to the if/then/else expressions used in programming languages but this type of node has internal state.
+This internal state is reset to the initial state after exception is thrown.
+Therefore, it must be safe for use with predicates and handlers that may throw an exception.
+
+| Return  | Condition               |
+| ------- | ----------------------- |
+| success | If the branch handler succeed             |
+| failure | If the branch handler fails or is missing |
+| running | In other cases                            |
 
 ## Decorators
 Decorators are control nodes with single child. These node types modify the behavior of the controlled child node.
@@ -42,9 +55,9 @@ The full list of supported decorators will be described in the sections below.
 
 | Return  | Condition               |
 | ------- | ----------------------- |
-| success | If child fail |
-| failure | If child succeed |
-| running | If child running |
+| success | If child fail           |
+| failure | If child succeed        |
+| running | If child running        |
 
 ## Execution nodes
 Execution nodes are leaf nodes with a specific logic or function. These leaf nodes are usually declared as user-defined lambda functions.

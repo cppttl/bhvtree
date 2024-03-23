@@ -110,5 +110,45 @@ status condition::tick() {
   return _predicate() ? status::success : status::failure;
 }
 
+// if_
+status if_::tick() {
+  if (_childs.empty() || !_childs[static_cast<size_t>(state::condition_state)])
+    throw std::runtime_error("There is no condition node under the 'if' node");
+
+  status st = status::failure;
+
+  try {
+    do {
+      if (!_childs[static_cast<size_t>(_state)]) {
+        _state = state::condition_state;
+        return status::failure;
+      }
+
+      st = (*_childs[static_cast<size_t>(_state)])();
+
+      switch (st) {
+      case status::running:
+        return st;
+      case status::success: {
+        _state = _state == state::condition_state ? state::then_state
+                                                  : state::break_state;
+        break;
+      }
+      case status::failure: {
+        _state = _state == state::condition_state ? state::else_state
+                                                  : state::break_state;
+        break;
+      }
+      }
+    } while (_state != state::break_state);
+
+    _state = state::condition_state;
+  } catch (...) {
+    _state = state::condition_state;
+    throw;
+  }
+  return st;
+}
+
 } // namespace bhv
 } // namespace cppttl
