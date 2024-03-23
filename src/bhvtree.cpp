@@ -324,9 +324,51 @@ status if_::tick() {
 void if_::reset() { _state = state::condition_state; }
 
 // switch_
-case_proxy::case_proxy(switch_ &stmt) : _switch(stmt) {}
+case_proxy::case_proxy(switch_ &stmt)
+    : _switch(stmt), _handler(stmt._handlers.size()) {}
+
+case_::case_(node::cptr const &condition, node::cptr const &handler)
+    : _condition(condition), _handler(handler) {}
+
+node::cptr const &case_::condition() const { return _condition; }
+
+node::cptr const &case_::handler() const { return _handler; }
+
+switch_::iterator::iterator(switch_ const &stmt, bool begin)
+    : _switch(stmt), _n(begin ? 0 : stmt._map.size()) {}
+
+switch_::iterator::value_type switch_::iterator::operator*() const {
+  if (_n >= _switch._map.size())
+    throw std::runtime_error("Attempt of invalid iterator dereferencing");
+  auto id = _switch._map[_n];
+  return {_switch._childs[_n], _switch._handlers[id]};
+}
+
+switch_::iterator &switch_::iterator::operator++() {
+  if (_n < _switch._map.size())
+    ++_n;
+  return *this;
+}
+
+switch_::iterator switch_::iterator::operator++(int) {
+  iterator it = *this;
+  if (_n < _switch._map.size())
+    ++_n;
+  return it;
+}
+
+bool switch_::iterator::operator==(iterator const &rhs) const {
+  return &_switch == &rhs._switch && _n == rhs._n;
+}
+
+bool switch_::iterator::operator!=(iterator const &rhs) const {
+  return !(operator==(rhs));
+}
 
 switch_::switch_(std::string_view name) : base(node_type::switch_, name) {}
+node::cptr switch_::default_handler() const { return _default_handler; }
+switch_::iterator switch_::begin() const { return iterator(*this, true); }
+switch_::iterator switch_::end() const { return iterator(*this, false); }
 
 status switch_::tick() {
   if (_childs.size() != _map.size())

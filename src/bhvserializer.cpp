@@ -21,6 +21,7 @@
  */
 
 #include "bhvserializer.hpp"
+#include "bhvtree.hpp"
 #include <stdexcept>
 
 namespace cppttl {
@@ -51,6 +52,7 @@ private:
   void save(fallback const &ref, size_t layer) const;
   void save(parallel const &ref, size_t layer) const;
   void save(if_ const &ref, size_t layer) const;
+  void save(switch_ const &ref, size_t layer) const;
 
 private:
   std::ostream &_stream;
@@ -92,6 +94,8 @@ void serializer::save(node const &ref, size_t layer) const {
     save(static_cast<if_ const &>(ref), layer);
     break;
   case node_type::switch_:
+    save(static_cast<switch_ const &>(ref), layer);
+    break;
   case node_type::invert:
   case node_type::repeat:
   case node_type::retry:
@@ -167,6 +171,35 @@ void serializer::save(if_ const &ref, size_t layer) const {
     if (ref.else_()) {
       indent(layer + 1) << "else" << std::endl;
       save(*ref.else_(), layer + 2);
+    }
+
+    indent(layer) << "}";
+  }
+
+  _stream << std::endl;
+}
+
+void serializer::save(switch_ const &ref, size_t layer) const {
+  indent(layer) << type_name(ref) << " " << ref.name();
+
+  if (!ref.childs().empty() || ref.default_handler()) {
+    _stream << " {" << std::endl;
+
+    node::cptr handler;
+
+    for (auto &&case_ : ref) {
+      if (handler && handler != case_.handler())
+        save(*handler, layer + 1);
+      save(*case_.condition(), layer);
+      handler = case_.handler();
+    }
+
+    if (handler)
+      save(*handler, layer + 1);
+
+    if (ref.default_handler()) {
+      indent(layer) << "default" << std::endl;
+      save(*ref.default_handler(), layer + 1);
     }
 
     indent(layer) << "}";

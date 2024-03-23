@@ -62,6 +62,7 @@ enum class node_type {
 class node {
 public:
   using ptr = std::shared_ptr<node>;
+  using cptr = std::shared_ptr<const node>;
 
   node(node_type type, std::string_view name);
   virtual ~node();
@@ -305,13 +306,44 @@ public:
 
 private:
   switch_ &_switch;
+  size_t const _handler{};
 
   friend class switch_;
+};
+
+class case_ {
+public:
+  case_(node::cptr const &condition, node::cptr const &handler);
+  case_(case_ const &) = default;
+  case_(case_ &&) = default;
+
+  node::cptr const &condition() const;
+  node::cptr const &handler() const;
+
+private:
+  node::cptr _condition;
+  node::cptr _handler;
 };
 
 class switch_ : public basic_control {
 public:
   using base = basic_control;
+
+  class iterator {
+  public:
+    typedef bhv::case_ value_type;
+
+    iterator(switch_ const &stmt, bool begin = true);
+    value_type operator*() const;
+    iterator &operator++();
+    iterator operator++(int);
+    bool operator==(iterator const &rhs) const;
+    bool operator!=(iterator const &rhs) const;
+
+  private:
+    switch_ const &_switch;
+    size_t _n{};
+  };
 
   switch_(std::string_view name);
 
@@ -321,6 +353,11 @@ public:
   template <typename T, typename Node = std::decay_t<T>>
   switch_ &default_(T &&node);
   template <typename Node, typename... Args> switch_ &default_(Args &&...args);
+
+  node::cptr default_handler() const;
+
+  iterator begin() const;
+  iterator end() const;
 
 private:
   status tick() final;
@@ -344,6 +381,7 @@ private:
   handlers_map _map;
 
   friend class case_proxy;
+  friend class case_;
 };
 
 template <typename C> case_proxy switch_::case_(C &&condition) {
@@ -368,7 +406,7 @@ switch_ &switch_::default_(Args &&...args) {
 
 template <typename Cond, typename Condition>
 case_proxy case_proxy::case_(Cond &&condition) && {
-  _switch._map.emplace_back(_switch._handlers.size());
+  _switch._map.emplace_back(_handler);
   try {
     _switch._childs.emplace_back(
         std::make_shared<Condition>(std::forward<Cond>(condition)));
@@ -381,7 +419,7 @@ case_proxy case_proxy::case_(Cond &&condition) && {
 
 template <typename C, typename... Args>
 case_proxy case_proxy::case_(Args &&...args) && {
-  _switch._map.emplace_back(_switch._handlers.size());
+  _switch._map.emplace_back(_handler);
   try {
     _switch._childs.emplace_back(
         std::make_shared<C>(std::forward<Args>(args)...));

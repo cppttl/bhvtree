@@ -1,6 +1,7 @@
 #include "bhvtree.hpp"
 #include "catch.hpp"
 #include <bhvserializer.hpp>
+#include <iostream>
 #include <sstream>
 
 using namespace cppttl;
@@ -109,4 +110,36 @@ TEST_CASE("If/Then/Else node serialization", "[serializer]") {
   ss << if_then;
   ss << if_else;
   ss << if_then_else;
+}
+
+TEST_CASE("Switch/Case node serialization", "[serializer]") {
+  int n, h = 0, h0 = 0, h1 = 0;
+
+  // clang-format off
+  auto switch_0 =
+    bhv::switch_("my_switch")
+      .case_<bhv::condition>("case 0", [&] { h0 = 0; return n == 0; })
+        .handler<bhv::action>("handler 0", [&] { return ++h0 < 2 ? bhv::status::running : bhv::status::success; })
+      .case_<bhv::condition>("case 1", [&] { h1 = 0; return n == 1; })
+        .handler<bhv::action>("handler 1", [&] { return ++h1 < 2 ? bhv::status::running : bhv::status::failure; })
+      .default_<bhv::action>("default", [&] { ++h; return bhv::status::success; });
+
+  auto switch_1 =
+    bhv::switch_("my_switch")
+      .case_<bhv::condition>("case 0", [&] { h0 = 0; return n == 0; })
+      .case_<bhv::condition>("case 1", [&] { h1 = 0; return n == 1; })
+        .handler<bhv::action>("handler 0", [&] { return ++h0 < 2 ? bhv::status::running : bhv::status::success; })
+      .case_<bhv::condition>("case 2", [&] { h1 = 0; return n == 1; })
+        .handler<bhv::action>("handler 1", [&] { return ++h1 < 2 ? bhv::status::running : bhv::status::failure; })
+      .default_<bhv::action>("default", [&] { ++h; return bhv::status::success; });
+
+  auto switch_2 =
+    bhv::switch_("my_switch")
+       .default_<bhv::action>("default", [&] { ++h; return bhv::status::success; });
+  // clang-format on
+
+  std::stringstream ss;
+  ss << switch_0;
+  ss << switch_1;
+  ss << switch_2;
 }
