@@ -128,7 +128,7 @@ void parallel::reset() { _statuses.clear(); }
 status invert::tick() {
   if (_childs.empty() || !_childs.front())
     throw std::runtime_error(
-        "There is no controllable node under the inverter node");
+        "There is no controllable node under the 'invert' node");
 
   auto status = (*_childs.front())();
 
@@ -145,6 +145,43 @@ status invert::tick() {
 
   return status::failure;
 }
+
+// repeat
+repeat::repeat(std::string_view name, size_t repeat_n)
+    : base(name), _n(repeat_n) {}
+
+status repeat::tick() {
+  if (_childs.empty() || !_childs.front())
+    throw std::runtime_error(
+        "There is no controllable node under the 'repeat' node");
+
+  const auto step = _n == infinitely ? 0ull : 1ull;
+
+  try {
+    for (; _i < _n; _i += step) {
+      auto status = (*_childs.front())();
+
+      switch (status) {
+      case status::success:
+        break;
+      case status::failure:
+        reset();
+        return status::failure;
+      case status::running:
+        return status::running;
+      }
+    }
+
+    reset();
+  } catch (...) {
+    reset();
+    throw;
+  }
+
+  return status::success;
+}
+
+void repeat::reset() { _i = 0; }
 
 // action
 status action::tick() { return _fn(); }

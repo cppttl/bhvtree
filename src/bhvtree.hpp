@@ -23,6 +23,7 @@
 #pragma once
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string_view>
 #include <type_traits>
@@ -385,6 +386,26 @@ public:
 
 private:
   status tick() final;
+};
+
+/**
+ * @brief Repeat the child node N times.
+ */
+class repeat : public decorator<repeat> {
+public:
+  using base = decorator<repeat>;
+
+  static constexpr auto infinitely = std::numeric_limits<size_t>::max();
+
+  repeat(std::string_view name, size_t repeat_n = infinitely);
+
+private:
+  status tick() final;
+  void reset();
+
+private:
+  size_t const _n;
+  size_t _i = {};
 };
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

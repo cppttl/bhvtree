@@ -73,6 +73,17 @@ The full list of supported decorators will be described in the sections below.
 | failure | If child succeed        |
 | running | If child running        |
 
+- **Repeat**
+
+Repetition of the child node N times. If the child node completed with an error, an error status is also returned.
+i.e, all executions of the child node must be successful to return a successful status.
+
+| Return  | Condition                |
+| ------- | ------------------------ |
+| success | If child succeed N times |
+| failure | If child fail            |
+| running | If child running         |
+
 ## Execution nodes
 Execution nodes are leaf nodes with a specific logic or function. These leaf nodes are usually declared as user-defined lambda functions.
 
