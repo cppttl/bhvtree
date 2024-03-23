@@ -6,7 +6,7 @@ include(CMakePackageConfigHelpers)
 include(CMakeDependentOption)
 include(GNUInstallDirs)
 
-option(BHVT_BUILD_TESTS "Build tests" OFF)
+option(BHVT_BUILD_TESTS "Build tests" ON)
 
 if (NOT DEFINED CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 17)
