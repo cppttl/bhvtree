@@ -40,12 +40,17 @@ public:
   node(std::string_view name);
   virtual ~node();
   status operator()();
+  std::string_view name() const;
 
 private:
   virtual status tick() = 0;
 
   std::string_view _name;
 };
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// control nodes
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // Note: every execution of a control flow node with memory can be obtained
 // with a non-memory BT using some auxiliary conditions
@@ -61,7 +66,7 @@ protected:
   childs_list _childs;
 };
 
-template <typename Impl> class control : public basic_control {
+template <typename Impl> class multi_control : public basic_control {
 public:
   using basic_control::basic_control;
 
@@ -71,44 +76,70 @@ public:
 
 template <typename Impl>
 template <typename Node, typename... Args>
-Impl &control<Impl>::add(Args &&...args) {
+Impl &multi_control<Impl>::add(Args &&...args) {
   _childs.emplace_back(std::make_shared<Node>(std::forward<Args>(args)...));
   return static_cast<Impl &>(*this);
 }
 
 template <typename Impl>
 template <typename T, typename Node>
-Impl &control<Impl>::add(T &&node) {
+Impl &multi_control<Impl>::add(T &&node) {
   _childs.emplace_back(std::make_shared<Node>(std::forward<T>(node)));
   return static_cast<Impl &>(*this);
 }
 
-// ->
-class sequence : public control<sequence> {
+template <typename Impl> class single_control : public basic_control {
 public:
-  using base = control<sequence>;
+  using basic_control::basic_control;
 
-  using base::base;
+  template <typename Node, typename... Args> Impl &child(Args &&...args);
+  template <typename T, typename Node = std::decay_t<T>> Impl &child(T &&node);
+};
+
+template <typename Impl>
+template <typename Node, typename... Args>
+Impl &single_control<Impl>::child(Args &&...args) {
+  _childs.resize(1);
+  node::ptr child = std::make_shared<Node>(std::forward<Args>(args)...);
+  std::swap(_childs.front(), child);
+  return static_cast<Impl &>(*this);
+}
+
+template <typename Impl>
+template <typename T, typename Node>
+Impl &single_control<Impl>::child(T &&node) {
+  _childs.resize(1);
+  node::ptr child = std::make_shared<Node>(std::forward<T>(node));
+  std::swap(_childs.front(), child);
+  return static_cast<Impl &>(*this);
+}
+
+// ->
+class sequence : public multi_control<sequence> {
+public:
+  using base = multi_control<sequence>;
+
+  using base::multi_control;
 
 private:
   status tick() final;
 };
 
 // ?
-class fallback : public control<fallback> {
+class fallback : public multi_control<fallback> {
 public:
-  using base = control<fallback>;
+  using base = multi_control<fallback>;
 
-  using base::base;
+  using base::multi_control;
 
 private:
   status tick() final;
 };
 
 // =>
-class parallel : public control<parallel> {
+class parallel : public multi_control<parallel> {
 public:
-  using base = control<parallel>;
+  using base = multi_control<parallel>;
 
   parallel(std::string_view name, size_t threshold);
 
@@ -118,6 +149,25 @@ private:
 private:
   size_t _threshold;
 };
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// decorators
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// !
+class invert : public single_control<invert> {
+public:
+  using base = single_control<invert>;
+
+  using base::single_control;
+
+private:
+  status tick() final;
+};
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// execution nodes
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // Action and Condition
 class execution : public node {

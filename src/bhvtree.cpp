@@ -21,6 +21,7 @@
  */
 
 #include "bhvtree.hpp"
+#include <stdexcept>
 
 namespace cppttl {
 namespace bhv {
@@ -31,6 +32,8 @@ node::node(std::string_view name) : _name(name) {}
 node::~node() {}
 
 status node::operator()() { return tick(); }
+
+std::string_view node::name() const { return _name; }
 
 // sequence
 status sequence::tick() {
@@ -75,6 +78,28 @@ status parallel::tick() {
   return success >= _threshold                  ? status::success
          : failed > _childs.size() - _threshold ? status::failure
                                                 : status::running;
+}
+
+// invert
+status invert::tick() {
+  if (_childs.empty() || !_childs.front())
+    throw std::runtime_error(
+        "There is no controllable node under the inverter node");
+
+  auto status = (*_childs.front())();
+
+  switch (status) {
+  case status::success:
+    return status::failure;
+  case status::failure:
+    return status::success;
+  case status::running:
+    return status::running;
+  }
+
+  throw std::runtime_error("The child node returned an unknown status");
+
+  return status::failure;
 }
 
 // action
