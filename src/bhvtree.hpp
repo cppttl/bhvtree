@@ -88,7 +88,7 @@ Impl &multi_control<Impl>::add(T &&node) {
   return static_cast<Impl &>(*this);
 }
 
-template <typename Impl> class single_control : public basic_control {
+template <typename Impl> class decorator : public basic_control {
 public:
   using basic_control::basic_control;
 
@@ -98,7 +98,7 @@ public:
 
 template <typename Impl>
 template <typename Node, typename... Args>
-Impl &single_control<Impl>::child(Args &&...args) {
+Impl &decorator<Impl>::child(Args &&...args) {
   _childs.resize(1);
   node::ptr child = std::make_shared<Node>(std::forward<Args>(args)...);
   std::swap(_childs.front(), child);
@@ -107,7 +107,7 @@ Impl &single_control<Impl>::child(Args &&...args) {
 
 template <typename Impl>
 template <typename T, typename Node>
-Impl &single_control<Impl>::child(T &&node) {
+Impl &decorator<Impl>::child(T &&node) {
   _childs.resize(1);
   node::ptr child = std::make_shared<Node>(std::forward<T>(node));
   std::swap(_childs.front(), child);
@@ -155,11 +155,11 @@ private:
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // !
-class invert : public single_control<invert> {
+class invert : public decorator<invert> {
 public:
-  using base = single_control<invert>;
+  using base = decorator<invert>;
 
-  using base::single_control;
+  using base::decorator;
 
 private:
   status tick() final;
