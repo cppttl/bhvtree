@@ -29,5 +29,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 if (BHVT_BUILD_TESTS)
+    include(CTest)
+    enable_testing()
     add_subdirectory(tests)
 endif()
