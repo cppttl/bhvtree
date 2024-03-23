@@ -33,7 +33,28 @@
 namespace cppttl {
 namespace bhv {
 
+/**
+ * @brief Statuses returned by node::tick() function
+ */
 enum class status { running, success, failure };
+
+/**
+ * @brief Supported node types
+ */
+enum class node_type {
+  action,
+  condition,
+  sequence,
+  fallback,
+  parallel,
+  if_,
+  switch_,
+  invert,
+  repeat,
+  retry,
+  force,
+  custom
+};
 
 /**
  * @brief The base class of all nodes.
@@ -42,14 +63,16 @@ class node {
 public:
   using ptr = std::shared_ptr<node>;
 
-  node(std::string_view name);
+  node(node_type type, std::string_view name);
   virtual ~node();
   status operator()();
+  node_type type() const;
   std::string_view name() const;
 
 private:
   virtual status tick() = 0;
 
+  node_type _type;
   std::string_view _name;
 };
 
@@ -69,6 +92,8 @@ public:
   using childs_list = std::vector<node::ptr>;
 
   using node::node;
+
+  childs_list const &childs() const;
 
 protected:
   childs_list _childs;
@@ -105,7 +130,7 @@ class sequence : public control<sequence> {
 public:
   using base = control<sequence>;
 
-  using base::control;
+  sequence(std::string_view name);
 
 private:
   status tick() final;
@@ -124,7 +149,7 @@ class fallback : public control<fallback> {
 public:
   using base = control<fallback>;
 
-  using base::control;
+  fallback(std::string_view name);
 
 private:
   status tick() final;
@@ -144,6 +169,7 @@ public:
   using base = control<parallel>;
 
   parallel(std::string_view name, size_t threshold);
+  size_t threshold() const;
 
 private:
   status tick() final;
@@ -164,8 +190,17 @@ class if_ : public basic_control {
 public:
   using base = basic_control;
 
+  if_(std::string_view name);
   template <typename T, typename Node = std::decay_t<T>>
   if_(std::string_view name, T &&node);
+
+  node::ptr condition() const;
+  node::ptr then_() const;
+  node::ptr else_() const;
+
+  template <typename T, typename Node = std::decay_t<T>>
+  if_ &condition(T &&node);
+  template <typename Node, typename... Args> if_ &condition(Args &&...args);
 
   template <typename T, typename Node = std::decay_t<T>> if_ &then_(T &&node);
   template <typename Node, typename... Args> if_ &then_(Args &&...args);
@@ -189,28 +224,56 @@ private:
 };
 
 template <typename T, typename Node>
-if_::if_(std::string_view name, T &&node) : base(name) {
-  _childs.resize(3);
-  _childs[0] = std::make_shared<Node>(std::forward<T>(node));
+if_::if_(std::string_view name, T &&node) : base(node_type::if_, name) {
+  _childs.reserve(3);
+  condition(std::forward<T>(node));
+}
+
+template <typename T, typename Node> if_ &if_::condition(T &&node) {
+  size_t const idx = static_cast<size_t>(state::condition_state);
+  if (_childs.size() < idx + 1)
+    _childs.resize(idx + 1);
+  _childs[idx] = std::make_shared<Node>(std::forward<T>(node));
+  return *this;
+}
+
+template <typename Node, typename... Args> if_ &if_::condition(Args &&...args) {
+  size_t const idx = static_cast<size_t>(state::condition_state);
+  if (_childs.size() < idx + 1)
+    _childs.resize(idx + 1);
+  _childs[idx] = std::make_shared<Node>(std::forward<Args>(args)...);
+  return *this;
 }
 
 template <typename T, typename Node> if_ &if_::then_(T &&node) {
-  _childs[1] = std::make_shared<Node>(std::forward<T>(node));
+  size_t const idx = static_cast<size_t>(state::then_state);
+  if (_childs.size() < idx + 1)
+    _childs.resize(idx + 1);
+  _childs[idx] = std::make_shared<Node>(std::forward<T>(node));
   return *this;
 }
 
 template <typename Node, typename... Args> if_ &if_::then_(Args &&...args) {
-  _childs[1] = std::make_shared<Node>(std::forward<Args>(args)...);
+  size_t const idx = static_cast<size_t>(state::then_state);
+  if (_childs.size() < idx + 1)
+    _childs.resize(idx + 1);
+  _childs[idx] = std::make_shared<Node>(std::forward<Args>(args)...);
   return *this;
 }
 
 template <typename T, typename Node> if_ &if_::else_(T &&node) {
-  _childs[2] = std::make_shared<Node>(std::forward<T>(node));
+  size_t const idx = static_cast<size_t>(state::else_state);
+  if (_childs.size() < idx + 1)
+    _childs.resize(idx + 1);
+  _childs[idx] = std::make_shared<Node>(std::forward<T>(node));
   return *this;
 }
 
 template <typename Node, typename... Args> if_ &if_::else_(Args &&...args) {
-  _childs[2] = std::make_shared<Node>(std::forward<Args>(args)...);
+  size_t const idx = static_cast<size_t>(state::else_state);
+  if (_childs.size() < idx + 1)
+    _childs.resize(idx + 1);
+  _childs[idx] = std::make_shared<Node>(std::forward<Args>(args)...);
   return *this;
 }
 
@@ -250,7 +313,7 @@ class switch_ : public basic_control {
 public:
   using base = basic_control;
 
-  using base::base;
+  switch_(std::string_view name);
 
   template <typename C> case_proxy case_(C &&condition);
   template <typename C, typename... Args> case_proxy case_(Args &&...args);
@@ -382,7 +445,7 @@ class invert : public decorator<invert> {
 public:
   using base = decorator<invert>;
 
-  using base::decorator;
+  invert(std::string_view name);
 
 private:
   status tick() final;
@@ -480,7 +543,8 @@ private:
 };
 
 template <typename Fn, typename R>
-action::action(std::string_view name, Fn &&fn) : execution(name), _fn(fn) {}
+action::action(std::string_view name, Fn &&fn)
+    : execution(node_type::action, name), _fn(fn) {}
 
 /**
  * @brief A condition node is a predicate that is very useful for branching an
@@ -501,7 +565,7 @@ private:
 
 template <typename Fn, typename R>
 condition::condition(std::string_view name, Fn &&fn)
-    : execution(name), _predicate(fn) {}
+    : execution(node_type::condition, name), _predicate(fn) {}
 
 } // namespace bhv
 } // namespace cppttl

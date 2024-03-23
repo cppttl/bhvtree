@@ -27,15 +27,24 @@ namespace cppttl {
 namespace bhv {
 
 // node
-node::node(std::string_view name) : _name(name) {}
+node::node(node_type type, std::string_view name) : _type(type), _name(name) {}
 
 node::~node() {}
 
 status node::operator()() { return tick(); }
 
+node_type node::type() const { return _type; }
+
 std::string_view node::name() const { return _name; }
 
+// basic_control
+basic_control::childs_list const &basic_control::childs() const {
+  return _childs;
+}
+
 // sequence
+sequence::sequence(std::string_view name) : base(node_type::sequence, name) {}
+
 status sequence::tick() {
   status st = status::success;
 
@@ -60,6 +69,8 @@ status sequence::tick() {
 void sequence::reset() { _running = 0; }
 
 // fallback
+fallback::fallback(std::string_view name) : base(node_type::fallback, name) {}
+
 status fallback::tick() {
   status st = status::failure;
 
@@ -85,7 +96,9 @@ void fallback::reset() { _running = 0; }
 
 // parallel
 parallel::parallel(std::string_view name, size_t threshold)
-    : base(name), _threshold(threshold) {}
+    : base(node_type::parallel, name), _threshold(threshold) {}
+
+size_t parallel::threshold() const { return _threshold; }
 
 status parallel::tick() {
   status st = status::success;
@@ -125,6 +138,8 @@ status parallel::tick() {
 void parallel::reset() { _statuses.clear(); }
 
 // invert
+invert::invert(std::string_view name) : base(node_type::invert, name) {}
+
 status invert::tick() {
   if (_childs.empty() || !_childs.front())
     throw std::runtime_error(
@@ -148,7 +163,7 @@ status invert::tick() {
 
 // repeat
 repeat::repeat(std::string_view name, size_t repeat_n)
-    : base(name), _n(repeat_n) {}
+    : base(node_type::repeat, name), _n(repeat_n) {}
 
 status repeat::tick() {
   if (_childs.empty() || !_childs.front())
@@ -185,7 +200,7 @@ void repeat::reset() { _i = 0; }
 
 // retry
 retry::retry(std::string_view name, size_t repeat_n)
-    : base(name), _n(repeat_n) {}
+    : base(node_type::retry, name), _n(repeat_n) {}
 
 status retry::tick() {
   if (_childs.empty() || !_childs.front())
@@ -221,7 +236,8 @@ status retry::tick() {
 void retry::reset() { _i = 0; }
 
 // force
-force::force(std::string_view name, status st) : base(name), _status(st) {}
+force::force(std::string_view name, status st)
+    : base(node_type::force, name), _status(st) {}
 
 status force::tick() {
   if (_childs.empty() || !_childs.front())
@@ -245,20 +261,41 @@ status condition::tick() {
 }
 
 // if_
+if_::if_(std::string_view name) : base(node_type::if_, name) {
+  _childs.reserve(3);
+}
+
+node::ptr if_::condition() const {
+  size_t const idx = static_cast<size_t>(state::condition_state);
+  return _childs.size() < idx + 1 ? node::ptr{} : _childs[idx];
+}
+
+node::ptr if_::then_() const {
+  size_t const idx = static_cast<size_t>(state::then_state);
+  return _childs.size() < idx + 1 ? node::ptr{} : _childs[idx];
+}
+
+node::ptr if_::else_() const {
+  size_t const idx = static_cast<size_t>(state::else_state);
+  return _childs.size() < idx + 1 ? node::ptr{} : _childs[idx];
+}
+
 status if_::tick() {
-  if (_childs.empty() || !_childs[static_cast<size_t>(state::condition_state)])
+  if (!condition())
     throw std::runtime_error("There is no condition node under the 'if' node");
 
   status st = status::failure;
 
   try {
     do {
-      if (!_childs[static_cast<size_t>(_state)]) {
+      size_t const idx = static_cast<size_t>(_state);
+
+      if (idx >= _childs.size() || !_childs[idx]) {
         reset();
         return status::failure;
       }
 
-      st = (*_childs[static_cast<size_t>(_state)])();
+      st = (*_childs[idx])();
 
       switch (st) {
       case status::running:
@@ -288,6 +325,8 @@ void if_::reset() { _state = state::condition_state; }
 
 // switch_
 case_proxy::case_proxy(switch_ &stmt) : _switch(stmt) {}
+
+switch_::switch_(std::string_view name) : base(node_type::switch_, name) {}
 
 status switch_::tick() {
   if (_childs.size() != _map.size())

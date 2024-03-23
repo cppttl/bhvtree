@@ -5,17 +5,29 @@ using namespace cppttl;
 
 TEST_CASE("If without handlers", "[if/then/else]") {
   // clang-format off
-  auto if_success =
+  auto if_success_0 =
         bhv::if_("if", bhv::condition("success", [] { return true; }));
-  auto if_failure =
+  auto if_success_1 =
+        bhv::if_("if")
+        .condition<bhv::condition>("success", [] { return true; });
+  auto if_failure_0 =
         bhv::if_("if", bhv::condition("failure", [] { return false; }));
-  auto if_running =
+  auto if_failure_1 =
+        bhv::if_("if")
+        .condition<bhv::condition>("success", [] { return false; });
+  auto if_running_0 =
         bhv::if_("if", bhv::action("running", [] { return bhv::status::running; }));
+  auto if_running_1 =
+        bhv::if_("if")
+        .condition(bhv::action("running", [] { return bhv::status::running; }));
   // clang-format on
 
-  REQUIRE(if_success() == bhv::status::failure);
-  REQUIRE(if_failure() == bhv::status::failure);
-  REQUIRE(if_running() == bhv::status::running);
+  REQUIRE(if_success_0() == bhv::status::failure);
+  REQUIRE(if_success_1() == bhv::status::failure);
+  REQUIRE(if_failure_0() == bhv::status::failure);
+  REQUIRE(if_failure_1() == bhv::status::failure);
+  REQUIRE(if_running_0() == bhv::status::running);
+  REQUIRE(if_running_1() == bhv::status::running);
 }
 
 TEST_CASE("If then", "[if/then/else]") {
