@@ -34,6 +34,9 @@ namespace bhv {
 
 enum class status { running, success, failure };
 
+/**
+ * @brief The base class of all nodes.
+ */
 class node {
 public:
   using ptr = std::shared_ptr<node>;
@@ -56,7 +59,10 @@ private:
 // Note: every execution of a control flow node with memory can be obtained
 // with a non-memory BT using some auxiliary conditions
 
-// Sequence, Fallback, Parallel, and Decorator
+/**
+ * @brief Base class for control nodes.
+ * A management node can manage multiple child nodes.
+ */
 class basic_control : public node {
 public:
   using childs_list = std::vector<node::ptr>;
@@ -90,6 +96,10 @@ Impl &control<Impl>::add(T &&node) {
 }
 
 // ->
+/**
+ * @brief A sequence node executes all child nodes in turn until one of them
+ * fails or all of them succeed.
+ */
 class sequence : public control<sequence> {
 public:
   using base = control<sequence>;
@@ -105,6 +115,10 @@ private:
 };
 
 // ?
+/**
+ * @brief The fallback node executes all child nodes until one of them succeeds,
+ * otherwise it fails.
+ */
 class fallback : public control<fallback> {
 public:
   using base = control<fallback>;
@@ -120,6 +134,10 @@ private:
 };
 
 // =>
+/**
+ * @brief The parallel node executes all the child nodes until at least M nodes
+ * succeed, otherwise it fails.
+ */
 class parallel : public control<parallel> {
 public:
   using base = control<parallel>;
@@ -138,6 +156,9 @@ private:
 };
 
 // if/then/else
+/**
+ * @brief An if-else statement controls conditional branching.
+ */
 class if_ : public basic_control {
 public:
   using base = basic_control;
@@ -193,6 +214,11 @@ template <typename Node, typename... Args> if_ &if_::else_(Args &&...args) {
 }
 
 // switch/case
+/**
+ * @brief The switch-case operator selects child nodes according to the given
+ * predicates and executes them. For successful completion, all selected child
+ * nodes must be completed with the successful status.
+ */
 class switch_;
 
 class case_proxy {
@@ -318,6 +344,10 @@ switch_ &case_proxy::handler(Args &&...args) && {
 // decorators
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+/**
+ * @brief The base class for decorators.
+ * Decorators are control nodes with single child.
+ */
 template <typename Impl> class decorator : public basic_control {
 public:
   using basic_control::basic_control;
@@ -344,7 +374,9 @@ Impl &decorator<Impl>::child(T &&node) {
   return static_cast<Impl &>(*this);
 }
 
-// !
+/**
+ * @brief A node for inverting the child result.
+ */
 class invert : public decorator<invert> {
 public:
   using base = decorator<invert>;
@@ -359,7 +391,9 @@ private:
 // execution nodes
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-// Action and Condition
+/**
+ * @brief The base class for execution nodes.
+ */
 class execution : public node {
 public:
   using node::node;
@@ -370,6 +404,11 @@ constexpr auto is_return_v = std::is_same_v<std::invoke_result_t<Fn>, R>;
 template <typename Fn, typename R>
 using return_t = std::enable_if_t<is_return_v<Fn, R>, R>;
 
+/**
+ * @brief An action node performs some useful task.
+ * It should return the status after execution.
+ * The statuses can be as follows: running, success, failure
+ */
 class action : public execution {
 public:
   using handler = std::function<status()>;
@@ -386,6 +425,10 @@ private:
 template <typename Fn, typename R>
 action::action(std::string_view name, Fn &&fn) : execution(name), _fn(fn) {}
 
+/**
+ * @brief A condition node is a predicate that is very useful for branching an
+ * algorithm. It can only return success or failure statuses.
+ */
 class condition : public execution {
 public:
   using predicate = std::function<bool()>;
